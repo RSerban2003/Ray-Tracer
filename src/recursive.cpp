@@ -1,8 +1,8 @@
 #include "recursive.h"
-#include "draw.h"
 #include "bvh_interface.h"
-#include "intersect.h"
+#include "draw.h"
 #include "extra.h"
+#include "intersect.h"
 #include "light.h"
 
 // This function is provided as-is. You do not have to implement it.
@@ -73,7 +73,16 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 {
     // TODO: generate a mirrored ray
     //       if you use glm::reflect, you will not get points for this method!
-    return Ray {};
+    glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+    glm::vec3 normal = glm::normalize(hitInfo.normal);
+    glm::vec3 incVector = glm::normalize(ray.direction - intersectionPoint);
+    glm::vec3 reflectionDirection = incVector - 2 * glm::dot(incVector, normal) * normal;
+    reflectionDirection = glm::normalize(reflectionDirection);
+    Ray res;
+    res.direction = reflectionDirection;
+    res.origin = intersectionPoint + normal * 0.000001f;
+
+    return res;
 }
 
 // TODO: Standard feature
@@ -86,7 +95,13 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 Ray generatePassthroughRay(Ray ray, HitInfo hitInfo)
 {
     // TODO: generate a passthrough ray
-    return Ray {};
+    glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+    glm::vec3 incVector = glm::normalize(ray.origin - intersectionPoint);
+    Ray res;
+    res.direction = -incVector;
+    res.origin = intersectionPoint + ray.direction * 0.000001f;
+
+    return res;
 }
 
 // TODO: standard feature
@@ -103,7 +118,10 @@ void renderRaySpecularComponent(RenderState& state, Ray ray, const HitInfo& hitI
 {
     // TODO; you should first implement generateReflectionRay()
     Ray r = generateReflectionRay(ray, hitInfo);
-    // ...
+
+    glm::vec3 rayColor = renderRay(state, r, rayDepth + 1);
+
+    hitColor += rayColor * hitInfo.material.ks;
 }
 
 // TODO: standard feature
@@ -120,5 +138,9 @@ void renderRayTransparentComponent(RenderState& state, Ray ray, const HitInfo& h
 {
     // TODO; you should first implement generatePassthroughRay()
     Ray r = generatePassthroughRay(ray, hitInfo);
-    // ...
+
+    glm::vec3 rayColor = renderRay(state, r, rayDepth + 1);
+
+    float tr = hitInfo.material.transparency;
+    hitColor = tr * rayColor + (1 - tr) * hitColor;
 }
