@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 #include <glm/geometric.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <iostream>
 #include <shading.h>
 
 // This function is provided as-is. You do not have to implement it (unless
@@ -41,14 +42,14 @@ glm::vec3 computeShading(RenderState& state, const glm::vec3& cameraDirection, c
 
     if (state.features.enableShading) {
         switch (state.features.shadingModel) {
-            case ShadingModel::Lambertian:
-                return computeLambertianModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
-            case ShadingModel::Phong:
-                return computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
-            case ShadingModel::BlinnPhong:
-                return computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
-            case ShadingModel::LinearGradient:
-                return computeLinearGradientModel(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
+        case ShadingModel::Lambertian:
+            return computeLambertianModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
+        case ShadingModel::Phong:
+            return computePhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
+        case ShadingModel::BlinnPhong:
+            return computeBlinnPhongModel(state, cameraDirection, lightDirection, lightColor, hitInfo);
+        case ShadingModel::LinearGradient:
+            return computeLinearGradientModel(state, cameraDirection, lightDirection, lightColor, hitInfo, gradient);
         };
     }
 
@@ -81,7 +82,17 @@ glm::vec3 computeLambertianModel(RenderState& state, const glm::vec3& cameraDire
 glm::vec3 computePhongModel(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo)
 {
     // TODO: Implement phong shading
-    return sampleMaterialKd(state, hitInfo) * lightColor;
+    glm::vec3 lightVector = glm::normalize(lightDirection);
+    glm::vec3 cameraVector = glm::normalize(cameraDirection);
+    glm::vec3 normal = glm::normalize(hitInfo.normal);
+    float cosDiffuse = glm::max(glm::dot(lightVector, normal), 0.0f);
+    glm::vec3 reflectionVector = 2.0f * glm::dot(lightVector, normal) * normal - lightVector;
+    float cosSpecular = glm::max(glm::dot(glm::normalize(reflectionVector), cameraVector), 0.0f);
+
+    glm::vec3 diffuseTerm = lightColor * sampleMaterialKd(state, hitInfo) * cosDiffuse;
+    glm::vec3 specularTerm = lightColor * hitInfo.material.ks * glm::pow(cosSpecular, hitInfo.material.shininess);
+
+    return diffuseTerm + specularTerm;
 }
 
 // TODO: Standard feature
@@ -102,7 +113,36 @@ glm::vec3 computePhongModel(RenderState& state, const glm::vec3& cameraDirection
 glm::vec3 computeBlinnPhongModel(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo)
 {
     // TODO: Implement blinn-phong shading
-    return sampleMaterialKd(state, hitInfo) * lightColor;
+    glm::vec3 lightVector = glm::normalize(lightDirection);
+    glm::vec3 cameraVector = glm::normalize(cameraDirection);
+    glm::vec3 normal = glm::normalize(hitInfo.normal);
+    glm::vec3 halfVector = glm::normalize(lightVector + cameraVector);
+    float cosDiffuse = glm::max(glm::dot(lightVector, normal), 0.0f);
+    float cosSpecular = glm::max(glm::dot(halfVector, normal), 0.0f);
+
+    glm::vec3 diffuseTerm = lightColor * sampleMaterialKd(state, hitInfo) * cosDiffuse;
+    glm::vec3 specularTerm = lightColor * hitInfo.material.ks * glm::pow(cosSpecular, hitInfo.material.shininess);
+
+    return diffuseTerm + specularTerm;
+}
+
+std::vector<LinearGradient::Component> sort(std::vector<LinearGradient::Component> components)
+{
+    for (int i = 0; i < components.size(); ++i) {
+        float smallestValue = components[i].t;
+        int smallestIndex = i;
+        int currentIndex = i;
+        while (currentIndex < components.size()) {
+            float currentValue = components[currentIndex].t;
+            if (currentValue < smallestValue) {
+                smallestValue = currentValue;
+                smallestIndex = currentIndex;
+            }
+            currentIndex++;
+        }
+        std::swap(components[i], components[smallestIndex]);
+    }
+    return components;
 }
 
 // TODO: Standard feature
@@ -114,7 +154,29 @@ glm::vec3 computeBlinnPhongModel(RenderState& state, const glm::vec3& cameraDire
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 LinearGradient::sample(float ti) const
 {
-    return glm::vec3(0.5f);
+    std::vector<Component> componentsSorted = sort(components);
+    if (ti < componentsSorted.front().t)
+        return componentsSorted.front().color;
+    if (ti > componentsSorted.back().t)
+        return componentsSorted.back().color;
+    for (Component c : componentsSorted) {
+        if (ti == c.t)
+            return c.color;
+    }
+
+    auto it = std::adjacent_find(components.begin(), components.end(), [ti](const Component& a, const Component& b) {
+        return a.t <= ti && ti <= b.t;
+    }); // pointer to pair of components
+
+    float leftBoundary = it->t;
+    glm::vec3 colorLeft = it->color;
+    float rightBoundary = std::next(it)->t;
+    glm::vec3 colorRight = std::next(it)->color;
+
+    float weightRight = (ti - leftBoundary) / (rightBoundary - leftBoundary);
+    float weightLeft = 1 - weightRight;
+
+    return colorLeft * weightLeft + colorRight * weightRight;
 }
 
 // TODO: Standard feature
@@ -134,6 +196,12 @@ glm::vec3 LinearGradient::sample(float ti) const
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 computeLinearGradientModel(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo, const LinearGradient& gradient)
 {
-    float cos_theta = glm::dot(lightDirection, hitInfo.normal);
-    return glm::vec3(0.f);
+    glm::vec3 lightVector = glm::normalize(lightDirection);
+    glm::vec3 normal = glm::normalize(hitInfo.normal);
+    float cos_theta = glm::dot(lightVector, normal);
+    glm::vec3 kD = gradient.sample(cos_theta);
+
+    cos_theta = glm::max(cos_theta, 0.0f);
+
+    return lightColor * kD * cos_theta;
 }
