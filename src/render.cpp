@@ -82,10 +82,39 @@ std::vector<Ray> generatePixelRays(RenderState& state, const Trackball& camera, 
 std::vector<Ray> generatePixelRaysMultisampled(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution)
 {
     // Generate numSamples camera rays uniformly distributed across the pixel. Use
-    // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
     auto numSamples = state.features.numPixelSamples;
     std::vector<Ray> rays;
-    // ...
+
+    /*
+    I assumed the number of samples does not have to be a perfect
+    square, so this approach, even if it might not place the samples
+    perfectly uniform, the difference should be as unnoticeable as
+    possible and ALL the samples should be placed, even for numbers
+    with inconvenient factorizations, such as prime numbers (that would result in poor
+    row/column-wise distributions).
+    PS: If the number of samples is in fact a perfect square then the samples will be placed perfectly uniform.
+    */
+
+    //determine the size of the cell each sample occupies
+    float cellSize = 1.0f / std::sqrt(numSamples);
+
+    //offset the samples to the center of the cell, and place the cells column-wise until the width of the pixel is reached, then switch to a new row
+    float xOffset, yOffset;
+    yOffset = 0.5f * cellSize;
+    while (yOffset < 1.0f) {
+        xOffset = 0.5f * cellSize;
+        while(xOffset < 1.0f && rays.size() < numSamples) {
+
+            //calculate the ray's position on the screen: add the pixel's coordinates, normalize, scale and translate to screen space
+            glm::vec2 position = (glm::vec2(pixel) + glm::vec2(xOffset, yOffset)) / glm::vec2(screenResolution) * 2.f - 1.f;
+
+            //add the ray to the vector
+            rays.push_back(camera.generateRay(position));
+            xOffset += cellSize;
+        }
+
+        yOffset += cellSize;
+    }
     return rays;
 }
 
@@ -103,9 +132,26 @@ std::vector<Ray> generatePixelRaysMultisampled(RenderState& state, const Trackba
 std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution)
 {
     // Generate numSamples * numSamples camera rays as jittered samples across the pixel.
-    // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
     auto numSamples = static_cast<uint32_t>(std::round(std::sqrt(float(state.features.numPixelSamples))));
     std::vector<Ray> rays;
-    // ...
+
+    //calculate the width of each cell based on the square root of the number of samples
+    float cellSize = 1.0f / numSamples;
+
+    //loop through all the cells
+    for (int i = 0; i < numSamples; i++) {
+        for (int j = 0; j < numSamples; j++) {
+
+            //calculate random x and y offset for a jittered effect and scale it to cell size
+            float xOffset = (i + state.sampler.next1d()) * cellSize;
+            float yOffset = (j + state.sampler.next1d()) * cellSize;
+
+            //calculate the ray's position on the screen: add the pixel's coordinates, normalize, scale and translate to screen space
+            glm::vec2 pos = (glm::vec2(pixel) + glm::vec2(xOffset, yOffset)) / glm::vec2(screenResolution) * 2.f - 1.f;
+
+            //add the ray to the vector
+            rays.push_back(camera.generateRay(pos));
+        }
+    }
     return rays;
 }
