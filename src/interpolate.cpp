@@ -54,6 +54,6 @@ glm::vec3 interpolateNormal(const glm::vec3& n0, const glm::vec3& n1, const glm:
 glm::vec2 interpolateTexCoord(const glm::vec2& t0, const glm::vec2& t1, const glm::vec2& t2, const glm::vec3 bc)
 {
     //sum of the multiplied texture coordinates with the barycentric coordinates
-    glm::vec3 interpolatedCoordinates = bc.x * t0 + bc.y * t1 + bc.z * t2;
+    glm::vec2 interpolatedCoordinates = bc.x * t0 + bc.y * t1 + bc.z * t2;
     return interpolatedCoordinates;
 }

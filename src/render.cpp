@@ -143,14 +143,14 @@ std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball
         for (int j = 0; j < numSamples; j++) {
 
             //calculate random x and y offset for a jittered effect and scale it to cell size
-            float xOffset = (i + state.sampler.next1d()) * cellSize;
-            float yOffset = (j + state.sampler.next1d()) * cellSize;
+            float xOffset = (i + state.sampler.next_1d()) * cellSize;
+            float yOffset = (j + state.sampler.next_1d()) * cellSize;
 
             //calculate the ray's position on the screen: add the pixel's coordinates, normalize, scale and translate to screen space
-            glm::vec2 pos = (glm::vec2(pixel) + glm::vec2(xOffset, yOffset)) / glm::vec2(screenResolution) * 2.f - 1.f;
+            glm::vec2 position = (glm::vec2(pixel) + glm::vec2(xOffset, yOffset)) / glm::vec2(screenResolution) * 2.f - 1.f;
 
             //add the ray to the vector
-            rays.push_back(camera.generateRay(pos));
+            rays.push_back(camera.generateRay(position));
         }
     }
     return rays;
