@@ -12,59 +12,46 @@ DISABLE_WARNINGS_PUSH()
 #include <glm/geometric.hpp>
 DISABLE_WARNINGS_POP()
 
-
-// TODO: Standard feature
-// Given a single segment light, transform a uniformly distributed 1d sample in [0, 1),
-// into a uniformly sampled position and an interpolated color on the segment light,
-// and write these into the reference return values.
-// - sample;    a uniformly distributed 1d sample in [0, 1)
-// - light;     the SegmentLight object, see `common.h`
-// - position;  reference return value of the sampled position on the light
-// - color;     reference return value of the color emitted by the light at the sampled position
-// This method is unit-tested, so do not change the function signature.
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
 {
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    position = light.endpoint0 + sample * (light.endpoint1 - light.endpoint0);
+    color = light.color0 + sample * (light.color1 - light.color0);
 }
 
-// TODO: Standard feature
-// Given a single paralellogram light, transform a uniformly distributed 2d sample in [0, 1),
-// into a uniformly sampled position and interpolated color on the paralellogram light,
-// and write these into the reference return values.
-// - sample;   a uniformly distributed 2d sample in [0, 1)
-// - light;    the ParallelogramLight object, see `common.h`
-// - position; reference return value of the sampled position on the light
-// - color;    reference return value of the color emitted by the light at the sampled position
-// This method is unit-tested, so do not change the function signature.
 void sampleParallelogramLight(const glm::vec2& sample, const ParallelogramLight& light, glm::vec3& position, glm::vec3& color)
 {
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    position = light.v0 + sample.x * light.edge01 + sample.y * light.edge02;
+    color = light.color0 + sample.x * (light.color1 - light.color0) + sample.y *
+    ((light.color3 + sample.x * (light.color2 - light.color3)) -
+    (light.color0 + sample.x * (light.color1 - light.color0)));
 }
 
-// TODO: Standard feature
-// Given a sampled position on some light, and the emitted color at this position, return whether
-// or not the light is visible from the provided ray/intersection.
-// For a description of the method's arguments, refer to 'light.cpp'
-// - state;         the active scene, feature config, and the bvh
-// - lightPosition; the sampled position on some light source
-// - lightColor;    the sampled color emitted at lightPosition
-// - ray;           the incident ray to the current intersection
-// - hitInfo;       information about the current intersection
-// - return;        whether the light is visible (true) or not (false)
-// This method is unit-tested, so do not change the function signature.
 bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPosition, const glm::vec3 &lightColor, const Ray& ray, const HitInfo& hitInfo)
 {
     if (!state.features.enableShadows) {
         // Shadows are disabled in the renderer
         return true;
-    } else {
-        // Shadows are enabled in the renderer
-        // TODO: implement this function; currently, the light simply passes through
-        return true;
+    }
+    else {
+        //create a ray from the intersection to the light source
+        glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+        glm::vec3 shadowDir = glm::normalize(lightPosition - intersectionPoint);
+        Ray shadowRay;
+
+        //small offset for the ray so that it doesn't intersect the object it starts from
+        shadowRay.origin = intersectionPoint + 0.001f * shadowDir;
+        shadowRay.direction = shadowDir;
+        shadowRay.t = glm::length(lightPosition - intersectionPoint - 0.001f);
+
+        //check whether the ray intersects anything
+        if (intersectRayWithBVH(state, state.bvh, shadowRay, hitInfo)) {
+            //light is not visible
+            return false;
+        }
+        else {
+            //light is visible
+            return true;
+        }
     }
 }
 
@@ -89,79 +76,56 @@ glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec
     return lightColor;
 }
 
-// TODO: Standard feature
-// Given a single point light, compute its contribution towards an incident ray at an intersection point.
-//
-// Hint: you should use `visibilityOfLightSample()` to account for shadows, and if the light is visible, use
-//       the result of `computeShading()`, whose submethods you should probably implement first in `shading.cpp`.
-//
-// - state;   the active scene, feature config, bvh, and a thread-safe sampler
-// - light;   the PointLight object, see `common.h`
-// - ray;     the incident ray to the current intersection
-// - hitInfo; information about the current intersection
-// - return;  reflected light along the incident ray, based on `computeShading()`
-//
-// This method is unit-tested, so do not change the function signature.
 glm::vec3 computeContributionPointLight(RenderState& state, const PointLight& light, const Ray& ray, const HitInfo& hitInfo)
 {
-    // TODO: modify this function to incorporate visibility corerctly
     glm::vec3 p = ray.origin + ray.t * ray.direction;
     glm::vec3 l = glm::normalize(light.position - p);
     glm::vec3 v = -ray.direction;
-    return computeShading(state, v, l, light.color, hitInfo);
+
+    glm::vec3 finalColor = visibilityOfLightSample(state, light.position, light.color, ray, hitInfo);
+    return computeShading(state, v, l, finalColor, hitInfo);
 }
 
-// TODO: Standard feature
-// Given a single segment light, compute its contribution towards an incident ray at an intersection point
-// by integrating over the segment, taking `numSamples` samples from the light source.
-//
-// Hint: you can sample the light by using `sampleSegmentLight(state.sampler.next_1d(), ...);`, which
-//       you should implement first.
-// Hint: you should use `visibilityOfLightSample()` to account for shadows, and if the sample is visible, use
-//       the result of `computeShading()`, whose submethods you should probably implement first in `shading.cpp`.
-//
-// - state;      the active scene, feature config, bvh, and a thread-safe sampler
-// - light;      the SegmentLight object, see `common.h`
-// - ray;        the incident ray to the current intersection
-// - hitInfo;    information about the current intersection
-// - numSamples; the number of samples you need to take
-// - return;     accumulated light along the incident ray, based on `computeShading()`
-//
-// This method is unit-tested, so do not change the function signature.
 glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight& light, const Ray& ray, const HitInfo& hitInfo, uint32_t numSamples)
 {
-    // TODO: implement this function; repeat numSamples times:
-    // - sample the segment light
-    // - test the sample's visibility
-    // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 totalLight(0.0f);
+
+    for (uint32_t i = 0; i < numSamples; ++i)
+    {
+        //sample the segment light
+        glm::vec3 samplePosition, sampleColor;
+        sampleSegmentLight(state.sampler.next_1d(), light, samplePosition, sampleColor);
+
+        //create a pointLight object for the pointLight contribution method
+        PointLight pointLight;
+        pointLight.position = samplePosition;
+        pointLight.color = sampleColor;
+
+        //add the contribution of each sample
+        totalLight += computeContributionPointLight(state, pointLight, ray, hitInfo);
+    }
+    return totalLight / numSamples;
 }
 
-// TODO: Standard feature
-// Given a single parralelogram light, compute its contribution towards an incident ray at an intersection point
-// by integrating over the parralelogram, taking `numSamples` samples from the light source, and applying
-// shading.
-//
-// Hint: you can sample the light by using `sampleParallelogramLight(state.sampler.next_1d(), ...);`, which
-//       you should implement first.
-// Hint: you should use `visibilityOfLightSample()` to account for shadows, and if the sample is visible, use
-//       the result of `computeShading()`, whose submethods you should probably implement first in `shading.cpp`.
-//
-// - state;      the active scene, feature config, bvh, and a thread-safe sampler
-// - light;      the ParallelogramLight object, see `common.h`
-// - ray;        the incident ray to the current intersection
-// - hitInfo;    information about the current intersection
-// - numSamples; the number of samples you need to take
-// - return;     accumulated light along the incident ray, based on `computeShading()`
-//
-// This method is unit-tested, so do not change the function signature.
 glm::vec3 computeContributionParallelogramLight(RenderState& state, const ParallelogramLight& light, const Ray& ray, const HitInfo& hitInfo, uint32_t numSamples)
 {
-    // TODO: implement this function; repeat numSamples times:
-    // - sample the parallellogram light
-    // - test the sample's visibility
-    // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 totalLight(0.0f);
+
+    for (uint32_t i = 0; i < numSamples; ++i)
+    {
+        //sample the parallelogram light
+        glm::vec3 samplePosition, sampleColor;
+        sampleParallelogramLight(state.sampler.next_1d(), light, samplePosition, sampleColor);
+
+        //create a pointLight object for the pointLight contribution method
+        PointLight pointLight;
+        pointLight.position = samplePosition;
+        pointLight.color = sampleColor;
+
+        //add the contribution of each sample
+        totalLight += computeContributionPointLight(state, pointLight, ray, hitInfo);
+    }
+    return totalLight / numSamples;
 }
 
 // This function is provided as-is. You do not have to implement it.
