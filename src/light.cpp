@@ -44,7 +44,8 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
         shadowRay.t = glm::length(lightPosition - intersectionPoint - 0.001f);
 
         //check whether the ray intersects anything
-        if (intersectRayWithBVH(state, state.bvh, shadowRay, hitInfo)) {
+        HitInfo collisionHitInfo;
+        if (intersectRayWithBVH(state, state.bvh, shadowRay, collisionHitInfo)) {
             //light is not visible
             return false;
         }
@@ -104,7 +105,7 @@ glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight
         //add the contribution of each sample
         totalLight += computeContributionPointLight(state, pointLight, ray, hitInfo);
     }
-    return totalLight / numSamples;
+    return glm::vec3(totalLight.x / numSamples, totalLight.y / numSamples, totalLight.z / numSamples);
 }
 
 glm::vec3 computeContributionParallelogramLight(RenderState& state, const ParallelogramLight& light, const Ray& ray, const HitInfo& hitInfo, uint32_t numSamples)
@@ -115,7 +116,7 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
     {
         //sample the parallelogram light
         glm::vec3 samplePosition, sampleColor;
-        sampleParallelogramLight(state.sampler.next_1d(), light, samplePosition, sampleColor);
+        sampleParallelogramLight(state.sampler.next_2d(), light, samplePosition, sampleColor);
 
         //create a pointLight object for the pointLight contribution method
         PointLight pointLight;
@@ -125,7 +126,7 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
         //add the contribution of each sample
         totalLight += computeContributionPointLight(state, pointLight, ray, hitInfo);
     }
-    return totalLight / numSamples;
+    return glm::vec3(totalLight.x / numSamples, totalLight.y / numSamples, totalLight.z / numSamples);
 }
 
 // This function is provided as-is. You do not have to implement it.
