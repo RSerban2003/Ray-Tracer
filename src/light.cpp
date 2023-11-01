@@ -10,6 +10,7 @@
 #include <framework/disable_all_warnings.h>
 DISABLE_WARNINGS_PUSH()
 #include <glm/geometric.hpp>
+#include <bvh.h>
 DISABLE_WARNINGS_POP()
 
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
