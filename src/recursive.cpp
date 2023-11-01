@@ -75,7 +75,7 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
     //       if you use glm::reflect, you will not get points for this method!
     glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
     glm::vec3 normal = glm::normalize(hitInfo.normal);
-    glm::vec3 incVector = glm::normalize(ray.direction - intersectionPoint);
+    glm::vec3 incVector = glm::normalize(ray.direction);
     glm::vec3 reflectionDirection = incVector - 2 * glm::dot(incVector, normal) * normal;
     reflectionDirection = glm::normalize(reflectionDirection);
     Ray res;
