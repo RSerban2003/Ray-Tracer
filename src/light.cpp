@@ -33,48 +33,58 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
         // Shadows are disabled in the renderer
         return true;
     }
-    else {
-        //create a ray from the intersection to the light source
-        glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
-        glm::vec3 shadowDir = glm::normalize(lightPosition - intersectionPoint);
-        Ray shadowRay;
+    //create a ray from the intersection to the light source
+    glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+    glm::vec3 shadowDir = glm::normalize(lightPosition - intersectionPoint);
+    Ray shadowRay;
 
-        //small offset for the ray so that it doesn't intersect the object it starts from
-        shadowRay.origin = intersectionPoint + 0.001f * shadowDir;
-        shadowRay.direction = shadowDir;
-        shadowRay.t = glm::length(lightPosition - intersectionPoint - 0.001f);
+    //small offset for the ray so that it doesn't intersect the object it starts from
+    shadowRay.origin = intersectionPoint + 0.001f * shadowDir;
+    shadowRay.direction = shadowDir;
+    shadowRay.t = glm::length(lightPosition - intersectionPoint - 0.001f);
 
-        //check whether the ray intersects anything
-        HitInfo collisionHitInfo;
-        if (intersectRayWithBVH(state, state.bvh, shadowRay, collisionHitInfo)) {
-            //light is not visible
-            return false;
-        }
-        else {
-            //light is visible
-            return true;
-        }
+    //check whether the ray intersects anything
+    HitInfo collisionHitInfo;
+    if (intersectRayWithBVH(state, state.bvh, shadowRay, collisionHitInfo)) {
+        //light is not visible
+        return false;
     }
+    //light is visible
+    return true;
 }
 
-// TODO: Standard feature
-// Given a sampled position on some light, and the emitted color at this position, return the actual
-// light that is visible from the provided ray/intersection, or 0 if this is not the case.
-// Use the following blending operation: lightColor = lightColor * kd * (1 - alpha)
-// Please reflect within 50 words in your report on why this is incorrect, and illustrate
-// two examples of what is incorrect.
-//
-// - state;         the active scene, feature config, and the bvh
-// - lightPosition; the sampled position on some light source
-// - lightColor;    the sampled color emitted at lightPosition
-// - ray;           the incident ray to the current intersection
-// - hitInfo;       information about the current intersection
-// - return;        the visible light color that reaches the intersection
-//
-// This method is unit-tested, so do not change the function signature.
 glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec3& lightPosition, const glm::vec3& lightColor, const Ray& ray, const HitInfo& hitInfo)
 {
-    // TODO: implement this function; currently, the light simply passes through
+    if (!state.features.enableShadows) {
+        // Shadows are disabled in the renderer
+        return lightColor;
+    }
+
+    //create a ray from the intersection to the light source
+    glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+    glm::vec3 shadowDir = glm::normalize(lightPosition - intersectionPoint);
+    Ray shadowRay;
+
+    //small offset for the ray so that it doesn't intersect the object it starts from
+    shadowRay.origin = intersectionPoint + 0.001f * shadowDir;
+    shadowRay.direction = shadowDir;
+    shadowRay.t = glm::length(lightPosition - intersectionPoint - 0.001f);
+
+    //check whether the ray intersects anything
+    HitInfo collisionHitInfo;
+    if (intersectRayWithBVH(state, state.bvh, shadowRay, collisionHitInfo)) {
+        //check whether the object is transparent
+        if (collisionHitInfo.material.transparency < 1.0f) {
+            //use alpha-blending to calculate contribution
+            glm::vec3 kd = collisionHitInfo.material.kd;
+            float alpha = collisionHitInfo.material.transparency;
+            return lightColor * kd * (1 - alpha);
+        }
+        //object is not transparent so we have no contribution
+        return glm::vec3(0.0f);
+    }
+
+    //there is no obstruction
     return lightColor;
 }
 
